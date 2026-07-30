@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>贪吃蛇</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #1e1e2e;
+    font-family: sans-serif;
+  }
+  #score {
+    color: #eee;
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+  canvas {
+    background: #11111b;
+    border: 2px solid #444;
+  }
+</style>
+</head>
+<body>
+<div id="score">得分：0</div>
+<canvas id="game" width="400" height="400"></canvas>
+<script>
+(function () {
+  var GRID = 20;        // 20x20 格
+  var CELL = 20;        // 每格像素
+  var TICK = 150;       // 每 150ms 走一格
+
+  var canvas = document.getElementById('game');
+  var ctx = canvas.getContext('2d');
+  var scoreEl = document.getElementById('score');
+
+  var snake, dir, nextDir, food, score, gameOver, paused, timer;
+
+  function reset() {
+    var cy = Math.floor(GRID / 2);
+    var cx = Math.floor(GRID / 2);
+    // 初始长度 3，位于中心，向右移动；头在最右
+    snake = [
+      { x: cx, y: cy },
+      { x: cx - 1, y: cy },
+      { x: cx - 2, y: cy }
+    ];
+    dir = { x: 1, y: 0 };
+    nextDir = dir;
+    score = 0;
+    gameOver = false;
+    paused = false;
+    food = spawnFood(snake);
+    updateScore();
+  }
+
+  function spawnFood(snake) {
+    var occupied = {};
+    for (var i = 0; i < snake.length; i++) {
+      occupied[snake[i].x + ',' + snake[i].y] = true;
+    }
+    var free = [];
+    for (var y = 0; y < GRID; y++) {
+      for (var x = 0; x < GRID; x++) {
+        if (!occupied[x + ',' + y]) free.push({ x: x, y: y });
+      }
+    }
+    return free[Math.floor(Math.random() * free.length)];
+  }
+
+  function isOpposite(a, b) {
+    return a.x + b.x === 0 && a.y + b.y === 0;
+  }
+
+  function step() {
+    if (gameOver || paused) return;
+    dir = nextDir;
+    var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+    // 撞墙
+    if (head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID) {
+      gameOver = true;
+      draw();
+      return;
+    }
+    var ate = (head.x === food.x && head.y === food.y);
+    // 撞自己（不吃时尾巴会移走，所以排除尾格）
+    var body = ate ? snake : snake.slice(0, snake.length - 1);
+    for (var i = 0; i < body.length; i++) {
+      if (body[i].x === head.x && body[i].y === head.y) {
+        gameOver = true;
+        draw();
+        return;
+      }
+    }
+    snake.unshift(head);
+    if (ate) {
+      score++;
+      updateScore();
+      food = spawnFood(snake);
+    } else {
+      snake.pop();
+    }
+    draw();
+  }
+
+  function updateScore() {
+    scoreEl.textContent = '得分：' + score;
+  }
+
+  function draw() {
+    ctx.fillStyle = '#11111b';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 食物
+    ctx.fillStyle = '#e64553';
+    ctx.fillRect(food.x * CELL + 1, food.y * CELL + 1, CELL - 2, CELL - 2);
+    // 蛇
+    ctx.fillStyle = '#3aff5e';
+    for (var i = 0; i < snake.length; i++) {
+      ctx.fillRect(snake[i].x * CELL + 1, snake[i].y * CELL + 1, CELL - 2, CELL - 2);
+    }
+    if (gameOver) {
+      overlay('游戏结束 得分 ' + score, '按空格重开');
+    } else if (paused) {
+      overlay('已暂停', '按空格继续');
+    }
+  }
+
+  function overlay(line1, line2) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillText(line1, canvas.width / 2, canvas.height / 2 - 10);
+    ctx.font = '18px sans-serif';
+    ctx.fillText(line2, canvas.width / 2, canvas.height / 2 + 25);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    var d = null;
+    if (e.key === 'ArrowUp') d = { x: 0, y: -1 };
+    else if (e.key === 'ArrowDown') d = { x: 0, y: 1 };
+    else if (e.key === 'ArrowLeft') d = { x: -1, y: 0 };
+    else if (e.key === 'ArrowRight') d = { x: 1, y: 0 };
+
+    if (d) {
+      e.preventDefault();
+      // 禁止 180° 反向（基于当前实际移动方向判断）
+      if (!isOpposite(d, dir)) nextDir = d;
+      return;
+    }
+    if (e.key === ' ') {
+      e.preventDefault();
+      if (gameOver) {
+        reset();
+        draw();
+      } else {
+        paused = !paused;
+        draw();
+      }
+    }
+  });
+
+  reset();
+  draw();
+  timer = setInterval(step, TICK);
+})();
+</script>
+</body>
+</html>
